@@ -49,10 +49,10 @@ class OperatorDetail(mixins.RetrieveModelMixin,
 	serializer_class = OperatorSerializer
 
 	def get(self, request, *args, **kwargs):
-	    return self.retrieve(request, *args, **kwargs)
+		return self.retrieve(request, *args, **kwargs)
 
 	def delete(self, request, *args, **kwargs):
-	    return self.destroy(request, *args, **kwargs)
+		return self.destroy(request, *args, **kwargs)
 
 class OperatorDetailPrivilaged(mixins.RetrieveModelMixin,
                     generics.GenericAPIView):
