@@ -122,10 +122,10 @@ class Contact(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __unicode__(self):
-       return self.email
+        return f"{self.person} - {self.get_role_type_display()}"
 
     def __str__(self):
-        return self.email
+        return f"{self.person} - {self.get_role_type_display()}"
 
 
 class Test(models.Model):
