@@ -50,9 +50,64 @@ class OperatorList(mixins.ListModelMixin,
     @requires_auth
     def post(self, request, *args, **kwargs):
         print("Received POST data:", request.data)
-        serializer = self.get_serializer(data=request.data)
+        data = request.data.copy()
+
+        # Handle operator_type conversion
+        if 'operator_type' in data:
+            if isinstance(data['operator_type'], str):
+                type_map = {'na': 0, 'luc': 1, 'non-luc': 2, 'auth': 3, 'dec': 4, 'private': 2}
+                op_type = data['operator_type'].lower()
+                if op_type in type_map:
+                    data['operator_type'] = type_map[op_type]
+
+        # Handle website format
+        if 'website' in data and data['website'] and not data['website'].startswith(('http://', 'https://')):
+            data['website'] = 'https://' + data['website']
+
+        # Handle address fields
+        if 'address' in data:
+            addr_data = data['address']
+            # Convert line_1 to address_line_1 if needed
+            if 'line_1' in addr_data and 'address_line_1' not in addr_data:
+                addr_data['address_line_1'] = addr_data.pop('line_1')
+
+            # Set default values for optional address fields
+            if 'address_line_2' not in addr_data:
+                addr_data['address_line_2'] = '-'
+            if 'address_line_3' not in addr_data:
+                addr_data['address_line_3'] = '-'
+
+            # Handle country code conversion
+            if 'country' in addr_data:
+                country_map = {
+                    'uae': 'AE',
+                    'united arab emirates': 'AE',
+                    'usa': 'US',
+                    'united states': 'US',
+                    'uk': 'GB',
+                    'united kingdom': 'GB'
+                }
+                country = addr_data['country'].lower()
+                if country in country_map:
+                    addr_data['country'] = country_map[country]
+
+        serializer = self.get_serializer(data=data)
         if not serializer.is_valid():
             print("Validation errors:", serializer.errors)
+            return Response({
+                'status': 'error',
+                'message': 'Validation failed',
+                'errors': serializer.errors,
+                'received_data': request.data,
+                'help': {
+                    'operator_type': 'Must be one of: 0 (NA), 1 (LUC), 2 (Non-LUC/Private), 3 (AUTH), 4 (DEC)',
+                    'website': 'Must include http:// or https://',
+                    'address': {
+                        'required_fields': ['address_line_1', 'city', 'country', 'postcode'],
+                        'country': 'Must be a valid ISO 3166 code (e.g., AE for UAE)'
+                    }
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
         return self.create(request, *args, **kwargs)
 
 
