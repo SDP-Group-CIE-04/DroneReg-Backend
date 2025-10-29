@@ -1,11 +1,11 @@
-Django 
-djangorestframework 
-django-rest-auth
+Django==3.2.25
+djangorestframework==3.12.4
+django-rest-auth==0.9.5
 django-heroku
 python-dateutil
 psycopg2-binary
 gunicorn
 cryptography
-django-extensions
-djangorestframework-jwt
-PyJWT
+django-extensions==3.2.3
+djangorestframework-jwt==1.11.0
+PyJWT==1.7.1
