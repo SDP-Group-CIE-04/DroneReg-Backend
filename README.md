@@ -24,5 +24,8 @@ Use `python manage.py migrate` to create the initial database tables locally. It
 ### 3. Populate initial data
 Use `python manage.py loaddata registry/defaultregistrydata.json` to populate initial data. 
 
-### 4. Launch browser 
+### 4. Run the server
+Use `python manage.py runserver` to start the development server on http://localhost:8000/.
+
+### 5. Launch browser 
 Launch browser to http://localhost:8000/api/v1/ to launch the API Explorer
