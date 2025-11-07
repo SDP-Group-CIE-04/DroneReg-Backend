@@ -16,6 +16,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.exceptions import ValidationError
 
 from registry.models import Activity, Authorization, Contact, Operator, Aircraft, Pilot, Test, TestValidity, Person, Address, Manufacturer
 from registry.serializers import (ContactSerializer, OperatorSerializer, PilotSerializer, 
@@ -50,7 +51,28 @@ class OperatorList(mixins.ListModelMixin,
     @requires_auth
     def post(self, request, *args, **kwargs):
         print("Received POST data:", request.data)
-        data = request.data.copy()
+        # Create a mutable copy of request data
+        # For JSON requests, request.data is already a dict
+        # For form data, it might be a QueryDict
+        import copy
+        if hasattr(request.data, '_mutable'):
+            # QueryDict - convert to regular dict
+            data = {}
+            for key, value in request.data.items():
+                if isinstance(value, list) and len(value) == 1:
+                    data[key] = value[0]
+                else:
+                    data[key] = value
+            # Handle nested structures (like address)
+            if 'address' in data and isinstance(data['address'], str):
+                try:
+                    import json
+                    data['address'] = json.loads(data['address'])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+        else:
+            # Already a dict, use deepcopy
+            data = copy.deepcopy(dict(request.data))
 
         # Handle operator_type conversion
         if 'operator_type' in data:
@@ -61,21 +83,43 @@ class OperatorList(mixins.ListModelMixin,
                     data['operator_type'] = type_map[op_type]
 
         # Handle website format
-        if 'website' in data and data['website'] and not data['website'].startswith(('http://', 'https://')):
-            data['website'] = 'https://' + data['website']
+        if 'website' in data and data['website']:
+            original_website = data['website']
+            if not data['website'].startswith(('http://', 'https://')):
+                data['website'] = 'https://' + data['website']
+            print(f"Website transformation: '{original_website}' -> '{data['website']}'", flush=True)
+        
+        # Handle phone number - normalize if it doesn't start with + or 1
+        if 'phone_number' in data and data['phone_number']:
+            phone = str(data['phone_number']).strip()
+            # Remove any spaces or dashes
+            phone = phone.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
+            # If it doesn't start with + and is just digits, it should be valid
+            # The regex allows: optional +, optional 1, then 9-15 digits
+            # So numbers like '0585396050' should work, but let's ensure it's clean
+            data['phone_number'] = phone
 
         # Handle address fields
         if 'address' in data:
-            addr_data = data['address']
+            # Ensure address is a dict (not a QueryDict or other type)
+            if not isinstance(data['address'], dict):
+                addr_data = dict(data['address'])
+            else:
+                addr_data = data['address'].copy()
+            
             # Convert line_1 to address_line_1 if needed
             if 'line_1' in addr_data and 'address_line_1' not in addr_data:
                 addr_data['address_line_1'] = addr_data.pop('line_1')
 
-            # Set default values for optional address fields
-            if 'address_line_2' not in addr_data:
+            # Set default values for required address fields if missing
+            if 'address_line_2' not in addr_data or not addr_data.get('address_line_2'):
                 addr_data['address_line_2'] = '-'
-            if 'address_line_3' not in addr_data:
+            if 'address_line_3' not in addr_data or not addr_data.get('address_line_3'):
                 addr_data['address_line_3'] = '-'
+            
+            # Ensure postcode has a default if missing
+            if 'postcode' not in addr_data or not addr_data.get('postcode'):
+                addr_data['postcode'] = '0'
 
             # Handle country code conversion
             if 'country' in addr_data:
@@ -87,28 +131,77 @@ class OperatorList(mixins.ListModelMixin,
                     'uk': 'GB',
                     'united kingdom': 'GB'
                 }
-                country = addr_data['country'].lower()
+                country = str(addr_data['country']).lower()
                 if country in country_map:
                     addr_data['country'] = country_map[country]
+            
+            # Update the address in data
+            data['address'] = addr_data
 
-        serializer = self.get_serializer(data=data)
-        if not serializer.is_valid():
-            print("Validation errors:", serializer.errors)
+        try:
+            serializer = self.get_serializer(data=data)
+            if not serializer.is_valid():
+                error_details = dict(serializer.errors)
+                print("DEBUG - Validation errors:", error_details, flush=True)
+                print("Validation errors:", error_details)
+                print("Processed data:", data, flush=True)
+                
+                # Format errors for better readability
+                formatted_errors = {}
+                for field, errors in error_details.items():
+                    if isinstance(errors, list):
+                        formatted_errors[field] = [str(e) for e in errors]
+                    else:
+                        formatted_errors[field] = [str(errors)]
+                
+                return Response({
+                    'status': 'error',
+                    'message': 'Validation failed',
+                    'errors': formatted_errors,
+                    'received_data': dict(request.data) if hasattr(request.data, 'dict') else request.data,
+                    'processed_data': data,
+                    'help': {
+                        'operator_type': 'Must be one of: 0 (NA), 1 (LUC), 2 (Non-LUC/Private), 3 (AUTH), 4 (DEC)',
+                        'website': 'Must include http:// or https://',
+                        'phone_number': 'Must match format: +999999999 or 9999999999 (9-15 digits)',
+                        'address': {
+                            'required_fields': ['address_line_1', 'address_line_2', 'address_line_3', 'city', 'country', 'postcode'],
+                            'country': 'Must be a valid ISO 3166 code (e.g., AE for UAE)'
+                        }
+                    }
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Create the operator using the validated serializer
+            serializer.save()
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+            
+        except ValidationError as e:
+            # Handle DRF ValidationError
+            print(f"ValidationError in operator creation: {str(e)}", flush=True)
+            error_details = dict(e.detail) if hasattr(e, 'detail') else {'error': [str(e)]}
+            formatted_errors = {}
+            for field, errors in error_details.items():
+                if isinstance(errors, list):
+                    formatted_errors[field] = [str(e) for e in errors]
+                else:
+                    formatted_errors[field] = [str(errors)]
+            
             return Response({
                 'status': 'error',
                 'message': 'Validation failed',
-                'errors': serializer.errors,
-                'received_data': request.data,
-                'help': {
-                    'operator_type': 'Must be one of: 0 (NA), 1 (LUC), 2 (Non-LUC/Private), 3 (AUTH), 4 (DEC)',
-                    'website': 'Must include http:// or https://',
-                    'address': {
-                        'required_fields': ['address_line_1', 'city', 'country', 'postcode'],
-                        'country': 'Must be a valid ISO 3166 code (e.g., AE for UAE)'
-                    }
-                }
+                'errors': formatted_errors,
+                'processed_data': data
             }, status=status.HTTP_400_BAD_REQUEST)
-        return self.create(request, *args, **kwargs)
+        except Exception as e:
+            print(f"Exception in operator creation: {str(e)}", flush=True)
+            import traceback
+            print(traceback.format_exc(), flush=True)
+            return Response({
+                'status': 'error',
+                'message': f'Server error: {str(e)}',
+                'error_type': type(e).__name__
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class OperatorDetail(mixins.RetrieveModelMixin,

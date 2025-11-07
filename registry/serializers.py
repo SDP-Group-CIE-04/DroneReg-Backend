@@ -3,11 +3,23 @@ from registry.models import Activity, Authorization, Operator, Contact, Aircraft
 
 
 class AddressSerializer(serializers.ModelSerializer):
-
+    address_line_2 = serializers.CharField(required=False, allow_blank=True, default='-')
+    address_line_3 = serializers.CharField(required=False, allow_blank=True, default='-')
+    postcode = serializers.CharField(required=False, allow_blank=True, default='0')
 
     class Meta:
         model = Address
         fields = ('id', 'address_line_1','address_line_2', 'address_line_3', 'postcode','city', 'country','created_at','updated_at')
+    
+    def validate(self, attrs):
+        # Convert empty strings to defaults
+        if 'address_line_2' in attrs and not attrs['address_line_2']:
+            attrs['address_line_2'] = '-'
+        if 'address_line_3' in attrs and not attrs['address_line_3']:
+            attrs['address_line_3'] = '-'
+        if 'postcode' in attrs and not attrs['postcode']:
+            attrs['postcode'] = '0'
+        return attrs
 
 class TypeCertificateSerializer(serializers.ModelSerializer):
 
@@ -41,12 +53,24 @@ class OperatorSerializer(serializers.ModelSerializer):
 class OperatorCreateSerializer(serializers.ModelSerializer):
     ''' Serializer for creating a new operator '''
     address = AddressSerializer()
+    phone_number = serializers.CharField(required=False, allow_blank=True, max_length=17)
     
     class Meta:
         model = Operator
         fields = ('company_name', 'website', 'email', 'phone_number', 
                   'operator_type', 'address', 'vat_number', 
                   'insurance_number', 'company_number', 'country')
+    
+    def validate_phone_number(self, value):
+        """Validate phone number format if provided"""
+        if value:
+            import re
+            phone_regex = r'^\+?1?\d{9,15}$'
+            if not re.match(phone_regex, value):
+                raise serializers.ValidationError(
+                    "Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
+                )
+        return value
     
     def create(self, validated_data):
         address_data = validated_data.pop('address')
