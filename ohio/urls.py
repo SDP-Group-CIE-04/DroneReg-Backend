@@ -40,6 +40,10 @@ urlpatterns = [
     path('api/v1/aircraft', registryviews.AircraftList.as_view()),
     path('api/v1/aircraft/<uuid:pk>', registryviews.AircraftDetail.as_view()),
     path('api/v1/aircraft/esn/<esn>', registryviews.AircraftESNDetails.as_view()),
+    # Aircraft endpoints (plural form for compatibility)
+    path('api/v1/aircrafts', registryviews.AircraftList.as_view()),
+    path('api/v1/aircrafts/<uuid:pk>', registryviews.AircraftDetail.as_view()),
+    path('api/v1/aircrafts/esn/<esn>', registryviews.AircraftESNDetails.as_view()),
     
     # Contact endpoints
     path('api/v1/contacts', registryviews.ContactList.as_view()),

@@ -178,13 +178,37 @@ class AircraftSerializer(serializers.ModelSerializer):
 
 class AircraftCreateSerializer(serializers.ModelSerializer):
     ''' Serializer for creating a new aircraft '''
+    type_certificate = TypeCertificateSerializer(required=False, allow_null=True)
+    registration_mark = serializers.CharField(required=False, allow_blank=True, max_length=10)
+    icao_aircraft_type_designator = serializers.CharField(required=False, allow_blank=True, max_length=4, default='0000')
+    manufacturer = serializers.PrimaryKeyRelatedField(queryset=Manufacturer.objects.all(), required=False, allow_null=True)
+    
     class Meta:
         model = Aircraft
         fields = ('operator', 'mass', 'manufacturer', 'model', 'esn', 'maci_number',
                  'registration_mark', 'category', 'sub_category', 'is_airworthy',
-                 'icao_aircraft_type_designator', 'max_certified_takeoff_weight', 'status')
+                 'icao_aircraft_type_designator', 'max_certified_takeoff_weight', 'status',
+                 'type_certificate', 'master_series', 'series', 'popular_name')
+    
+    def validate_registration_mark(self, value):
+        """Validate registration_mark length"""
+        if value and len(value) > 10:
+            raise serializers.ValidationError(f"Registration mark must be 10 characters or less. Received {len(value)} characters: '{value}'")
+        return value
+    
+    def validate_icao_aircraft_type_designator(self, value):
+        """Validate icao_aircraft_type_designator length"""
+        if value and len(value) > 4:
+            raise serializers.ValidationError(f"ICAO aircraft type designator must be 4 characters or less. Received {len(value)} characters: '{value}'")
+        return value
     
     def create(self, validated_data):
+        # Handle nested type_certificate
+        type_certificate_data = validated_data.pop('type_certificate', None)
+        type_certificate = None
+        if type_certificate_data:
+            type_certificate = TypeCertificate.objects.create(**type_certificate_data)
+        
         # Handle missing or empty manufacturer
         if 'manufacturer' not in validated_data or not validated_data['manufacturer']:
             # Get the first manufacturer or create a default one if none exists
@@ -211,7 +235,15 @@ class AircraftCreateSerializer(serializers.ModelSerializer):
                     country="US"
                 )
         
-        return super().create(validated_data)
+        # Create the aircraft
+        aircraft = Aircraft.objects.create(**validated_data)
+        
+        # Set type_certificate if it was created
+        if type_certificate:
+            aircraft.type_certificate = type_certificate
+            aircraft.save()
+        
+        return aircraft
 
 class AircraftESNSerializer(serializers.ModelSerializer):
 

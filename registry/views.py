@@ -283,7 +283,77 @@ class AircraftList(mixins.ListModelMixin,
     
     @requires_auth
     def post(self, request, *args, **kwargs):
-        return self.create(request, *args, **kwargs)
+        print("Received POST data for aircraft:", request.data, flush=True)
+        
+        try:
+            serializer = self.get_serializer(data=request.data)
+            if not serializer.is_valid():
+                error_details = dict(serializer.errors)
+                print("DEBUG - Validation errors:", error_details, flush=True)
+                print("Validation errors:", error_details)
+                print("Received data:", dict(request.data) if hasattr(request.data, 'dict') else request.data, flush=True)
+                
+                # Format errors for better readability
+                formatted_errors = {}
+                for field, errors in error_details.items():
+                    if isinstance(errors, list):
+                        formatted_errors[field] = [str(e) for e in errors]
+                    else:
+                        formatted_errors[field] = [str(errors)]
+                
+                return Response({
+                    'status': 'error',
+                    'message': 'Validation failed',
+                    'errors': formatted_errors,
+                    'received_data': dict(request.data) if hasattr(request.data, 'dict') else request.data,
+                    'help': {
+                        'operator': 'Required. Must be a valid operator UUID.',
+                        'mass': 'Required. Must be an integer (mass in kg).',
+                        'manufacturer': 'Optional. If not provided, will use first available manufacturer or create a default one.',
+                        'model': 'Required. Must be a string (aircraft model name).',
+                        'esn': 'Optional. Equipment Serial Number.',
+                        'maci_number': 'Required. Must be a string (MACI number).',
+                        'registration_mark': 'Optional. Aircraft registration mark.',
+                        'category': 'Optional. Integer: 0=Other, 1=FIXED WING, 2=ROTORCRAFT, 3=LIGHTER-THAN-AIR, 4=HYBRID LIFT. Default: 0',
+                        'sub_category': 'Optional. Integer: 0=Other, 1=AIRPLANE, 2=NONPOWERED GLIDER, 3=POWERED GLIDER, 4=HELICOPTER, 5=GYROPLANE, 6=BALLOON/AIRSHIP, 7=UAV. Default: 7',
+                        'is_airworthy': 'Optional. Boolean. Default: False',
+                        'icao_aircraft_type_designator': 'Optional. String (max 4 chars). Default: "0000"',
+                        'max_certified_takeoff_weight': 'Optional. Decimal. Default: 0.00',
+                        'status': 'Optional. Integer: 0=Inactive, 1=Active. Default: 1'
+                    }
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Create the aircraft using the validated serializer
+            serializer.save()
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+            
+        except ValidationError as e:
+            # Handle DRF ValidationError
+            print(f"ValidationError in aircraft creation: {str(e)}", flush=True)
+            error_details = dict(e.detail) if hasattr(e, 'detail') else {'error': [str(e)]}
+            formatted_errors = {}
+            for field, errors in error_details.items():
+                if isinstance(errors, list):
+                    formatted_errors[field] = [str(e) for e in errors]
+                else:
+                    formatted_errors[field] = [str(errors)]
+            
+            return Response({
+                'status': 'error',
+                'message': 'Validation failed',
+                'errors': formatted_errors,
+                'received_data': dict(request.data) if hasattr(request.data, 'dict') else request.data
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print(f"Exception in aircraft creation: {str(e)}", flush=True)
+            import traceback
+            print(traceback.format_exc(), flush=True)
+            return Response({
+                'status': 'error',
+                'message': f'Server error: {str(e)}',
+                'error_type': type(e).__name__
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class AircraftDetail(mixins.RetrieveModelMixin,
