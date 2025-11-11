@@ -270,8 +270,23 @@ class AircraftList(mixins.ListModelMixin,
                   generics.GenericAPIView):
     """
     List all aircraft, or create a new aircraft.
+    Supports filtering by operator via ?operator=<uuid> query parameter.
     """
     queryset = Aircraft.objects.all()
+    
+    def get_queryset(self):
+        """
+        Optionally filter aircraft by operator query parameter.
+        Example: GET /api/v1/aircraft?operator=566d63bb-cb1c-42dc-9a51-baef0d0a8d04
+        """
+        queryset = Aircraft.objects.all()
+        operator_id = self.request.query_params.get('operator', None)
+        
+        if operator_id:
+            # Filter aircraft by operator UUID
+            queryset = queryset.filter(operator_id=operator_id)
+        
+        return queryset
     
     def get_serializer_class(self):
         if self.request.method == 'POST':
@@ -310,11 +325,11 @@ class AircraftList(mixins.ListModelMixin,
                         'operator': 'Required. Must be a valid operator UUID.',
                         'mass': 'Required. Must be an integer (mass in kg).',
                         'manufacturer': 'Optional. If not provided, will use first available manufacturer or create a default one.',
-                        'model': 'Required. Must be a string (aircraft model name).',
-                        'esn': 'Optional. Equipment Serial Number.',
-                        'maci_number': 'Required. Must be a string (MACI number).',
-                        'registration_mark': 'Optional. Aircraft registration mark.',
-                        'category': 'Optional. Integer: 0=Other, 1=FIXED WING, 2=ROTORCRAFT, 3=LIGHTER-THAN-AIR, 4=HYBRID LIFT. Default: 0',
+                        'model': 'Optional. String (max 280 chars). Default: "GenericModel"',
+                        'esn': 'Optional. String (max 48 chars). Auto-generated if not provided.',
+                        'maci_number': 'Optional. String (max 280 chars). Auto-generated if not provided.',
+                        'registration_mark': 'Optional. String (max 10 chars).',
+                        'category': 'Optional. Integer: 0=Other, 1=AEROPLANE, 2=ROTORCRAFT, 3=Hybrid, 4=Ornithopter. Default: 0',
                         'sub_category': 'Optional. Integer: 0=Other, 1=AIRPLANE, 2=NONPOWERED GLIDER, 3=POWERED GLIDER, 4=HELICOPTER, 5=GYROPLANE, 6=BALLOON/AIRSHIP, 7=UAV. Default: 7',
                         'is_airworthy': 'Optional. Boolean. Default: False',
                         'icao_aircraft_type_designator': 'Optional. String (max 4 chars). Default: "0000"',
