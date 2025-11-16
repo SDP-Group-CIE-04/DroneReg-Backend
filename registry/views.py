@@ -18,12 +18,13 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.exceptions import ValidationError
 
-from registry.models import Activity, Authorization, Contact, Operator, Aircraft, Pilot, Test, TestValidity, Person, Address, Manufacturer
+from registry.models import Activity, Authorization, Contact, Operator, Aircraft, Pilot, Test, TestValidity, Person, Address, Manufacturer, RIDModule
 from registry.serializers import (ContactSerializer, OperatorSerializer, PilotSerializer, 
                                   PrivilagedContactSerializer, PrivilagedPilotSerializer,
                                   PrivilagedOperatorSerializer, AircraftSerializer, AircraftESNSerializer,
                                   OperatorCreateSerializer, PilotCreateSerializer, 
-                                  ContactCreateSerializer, AircraftCreateSerializer, ManufacturerSerializer)
+                                  ContactCreateSerializer, AircraftCreateSerializer, ManufacturerSerializer,
+                                  RIDModuleSerializer, RIDModuleCreateSerializer)
 from django.http import JsonResponse
 from rest_framework.decorators import api_view
 from six.moves.urllib import request as req
@@ -548,3 +549,188 @@ class HomeView(TemplateView):
 
 class APIView(TemplateView):
     template_name = 'registry/api.html'
+
+
+class RIDModuleList(mixins.ListModelMixin,
+                    mixins.CreateModelMixin,
+                    generics.GenericAPIView):
+    """
+    List all RID modules, or create a new RID module.
+    Supports filtering by operator via ?operator=<uuid> query parameter.
+    Supports filtering by aircraft via ?aircraft=<uuid> query parameter.
+    """
+    queryset = RIDModule.objects.all()
+    
+    def get_queryset(self):
+        """
+        Optionally filter RID modules by operator or aircraft query parameters.
+        Example: GET /api/v1/rid-modules?operator=566d63bb-cb1c-42dc-9a51-baef0d0a8d04
+        Example: GET /api/v1/rid-modules?aircraft=566d63bb-cb1c-42dc-9a51-baef0d0a8d04
+        """
+        queryset = RIDModule.objects.all()
+        operator_id = self.request.query_params.get('operator', None)
+        aircraft_id = self.request.query_params.get('aircraft', None)
+        
+        if operator_id:
+            queryset = queryset.filter(operator_id=operator_id)
+        if aircraft_id:
+            queryset = queryset.filter(aircraft_id=aircraft_id)
+        
+        return queryset
+    
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return RIDModuleCreateSerializer
+        return RIDModuleSerializer
+    
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+    
+    @requires_auth
+    def post(self, request, *args, **kwargs):
+        print("Received POST data for RID module:", request.data, flush=True)
+        
+        try:
+            serializer = self.get_serializer(data=request.data)
+            if not serializer.is_valid():
+                error_details = dict(serializer.errors)
+                print("DEBUG - Validation errors:", error_details, flush=True)
+                
+                formatted_errors = {}
+                for field, errors in error_details.items():
+                    if isinstance(errors, list):
+                        formatted_errors[field] = [str(e) for e in errors]
+                    else:
+                        formatted_errors[field] = [str(errors)]
+                
+                return Response({
+                    'status': 'error',
+                    'message': 'Validation failed',
+                    'errors': formatted_errors,
+                    'received_data': dict(request.data) if hasattr(request.data, 'dict') else request.data,
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            serializer.save()
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+            
+        except ValidationError as e:
+            print(f"ValidationError in RID module creation: {str(e)}", flush=True)
+            error_details = dict(e.detail) if hasattr(e, 'detail') else {'error': [str(e)]}
+            formatted_errors = {}
+            for field, errors in error_details.items():
+                if isinstance(errors, list):
+                    formatted_errors[field] = [str(e) for e in errors]
+                else:
+                    formatted_errors[field] = [str(errors)]
+            
+            return Response({
+                'status': 'error',
+                'message': 'Validation failed',
+                'errors': formatted_errors,
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print(f"Exception in RID module creation: {str(e)}", flush=True)
+            import traceback
+            print(traceback.format_exc(), flush=True)
+            return Response({
+                'status': 'error',
+                'message': f'Server error: {str(e)}',
+                'error_type': type(e).__name__
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class RIDModuleDetail(mixins.RetrieveModelMixin,
+                     mixins.UpdateModelMixin,
+                     mixins.DestroyModelMixin,
+                     generics.GenericAPIView):
+    """
+    Retrieve, update or delete a RID Module instance.
+    """
+    queryset = RIDModule.objects.all()
+    serializer_class = RIDModuleSerializer
+    
+    def get(self, request, *args, **kwargs):
+        return self.retrieve(request, *args, **kwargs)
+    
+    @requires_auth
+    def put(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+    
+    @requires_auth
+    def patch(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # Handle deactivation
+        if 'status' in request.data and request.data['status'] in ['inactive', 'decommissioned', 'lost']:
+            from django.utils import timezone
+            if not instance.deactivated_at:
+                request.data['deactivated_at'] = timezone.now()
+        return self.partial_update(request, *args, **kwargs)
+    
+    @requires_auth
+    def delete(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # Soft delete - set status to decommissioned instead of actually deleting
+        from django.utils import timezone
+        instance.status = 'decommissioned'
+        instance.deactivated_at = timezone.now()
+        instance.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class RIDModuleByRIDID(mixins.RetrieveModelMixin,
+                       generics.GenericAPIView):
+    """
+    Retrieve RID module by RID ID.
+    """
+    queryset = RIDModule.objects.all()
+    serializer_class = RIDModuleSerializer
+    lookup_field = 'rid_id'
+    
+    def get(self, request, *args, **kwargs):
+        return self.retrieve(request, *args, **kwargs)
+
+
+class RIDModuleByESN(mixins.RetrieveModelMixin,
+                     generics.GenericAPIView):
+    """
+    Retrieve RID module by ESN (Electronic Serial Number).
+    """
+    queryset = RIDModule.objects.all()
+    serializer_class = RIDModuleSerializer
+    lookup_field = 'module_esn'
+    
+    def get(self, request, *args, **kwargs):
+        return self.retrieve(request, *args, **kwargs)
+
+
+class OperatorRIDModules(mixins.ListModelMixin,
+                        generics.GenericAPIView):
+    """
+    Retrieve all RID modules for a specific operator.
+    """
+    queryset = RIDModule.objects.all()
+    serializer_class = RIDModuleSerializer
+    
+    def get_queryset(self):
+        operator_id = self.kwargs.get('pk')
+        return RIDModule.objects.filter(operator_id=operator_id)
+    
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+
+
+class AircraftRIDModules(mixins.ListModelMixin,
+                        generics.GenericAPIView):
+    """
+    Retrieve all RID modules for a specific aircraft.
+    """
+    queryset = RIDModule.objects.all()
+    serializer_class = RIDModuleSerializer
+    
+    def get_queryset(self):
+        aircraft_id = self.kwargs.get('pk')
+        return RIDModule.objects.filter(aircraft_id=aircraft_id)
+    
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)

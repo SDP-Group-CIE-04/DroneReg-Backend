@@ -211,3 +211,67 @@ class Aircraft(models.Model):
 
     def __str__(self):
         return self.model
+
+
+class RIDModule(models.Model):
+    """
+    Remote ID (RID) Module model for managing aircraft RID modules separately from aircraft records.
+    Tracks module hardware, activation status, and lifecycle.
+    """
+    STATUS_CHOICES = (
+        ('active', _('Active')),
+        ('inactive', _('Inactive')),
+        ('decommissioned', _('Decommissioned')),
+        ('lost', _('Lost')),
+    )
+    ACTIVATION_STATUS_CHOICES = (
+        ('temporary', _('Temporary')),
+        ('permanent', _('Permanent')),
+    )
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # RID Identifier (the actual RID ID broadcast by the module)
+    rid_id = models.UUIDField(unique=True, null=False, help_text="RID ID (UUID v4) broadcast by the module")
+    
+    # Relationships
+    operator = models.ForeignKey(Operator, models.CASCADE, related_name='rid_modules')
+    aircraft = models.ForeignKey(Aircraft, models.SET_NULL, null=True, blank=True, related_name='rid_modules')
+    
+    # Module Hardware Information
+    module_esn = models.CharField(max_length=16, null=False, unique=True, help_text="Electronic Serial Number")
+    module_port = models.CharField(max_length=50, blank=True, null=True, help_text="USB port (COM3, /dev/ttyACM0, etc.)")
+    module_type = models.CharField(max_length=50, default='ESP32-S3', help_text="Module type/model")
+    
+    # Status & Lifecycle
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    activation_status = models.CharField(max_length=20, choices=ACTIVATION_STATUS_CHOICES, default='temporary')
+    
+    # Timestamps
+    activated_at = models.DateTimeField(null=False, auto_now_add=True)
+    last_seen_at = models.DateTimeField(blank=True, null=True, help_text="Last time module was detected")
+    deactivated_at = models.DateTimeField(blank=True, null=True, help_text="When module was deactivated")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Metadata
+    notes = models.TextField(blank=True, null=True, help_text="Admin notes")
+    firmware_version = models.CharField(max_length=20, blank=True, null=True, help_text="Firmware version if tracked")
+    
+    class Meta:
+        db_table = 'rid_modules'
+        verbose_name = 'RID Module'
+        verbose_name_plural = 'RID Modules'
+        indexes = [
+            models.Index(fields=['operator']),
+            models.Index(fields=['aircraft']),
+            models.Index(fields=['status']),
+            models.Index(fields=['module_esn']),
+            models.Index(fields=['rid_id']),
+        ]
+    
+    def __str__(self):
+        return f"RID Module {self.module_esn} ({self.rid_id})"
+    
+    def __unicode__(self):
+        return f"RID Module {self.module_esn} ({self.rid_id})"

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from registry.models import Activity, Authorization, Operator, Contact, Aircraft, Pilot, Address, Person, Test, TypeCertificate, Manufacturer
+from registry.models import Activity, Authorization, Operator, Contact, Aircraft, Pilot, Address, Person, Test, TypeCertificate, Manufacturer, RIDModule
 
 
 class AddressSerializer(serializers.ModelSerializer):
@@ -304,3 +304,55 @@ class ManufacturerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Manufacturer
         fields = ('id', 'full_name', 'common_name', 'acronym', 'role', 'country')
+
+
+class RIDModuleSerializer(serializers.ModelSerializer):
+    """Serializer for RID Module list and detail views"""
+    operator = OperatorSerializer(read_only=True)
+    aircraft = AircraftSerializer(read_only=True)
+    
+    class Meta:
+        model = RIDModule
+        fields = (
+            'id', 'rid_id', 'operator', 'aircraft', 'module_esn', 'module_port', 
+            'module_type', 'status', 'activation_status', 'activated_at', 
+            'last_seen_at', 'deactivated_at', 'created_at', 'updated_at', 
+            'notes', 'firmware_version'
+        )
+        read_only_fields = ('id', 'rid_id', 'created_at', 'updated_at')
+
+
+class RIDModuleCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating a new RID Module"""
+    rid_id = serializers.UUIDField(required=False, help_text="RID ID (UUID v4). If not provided, will be generated.")
+    module_port = serializers.CharField(required=False, allow_blank=True, max_length=50)
+    notes = serializers.CharField(required=False, allow_blank=True)
+    firmware_version = serializers.CharField(required=False, allow_blank=True, max_length=20)
+    
+    class Meta:
+        model = RIDModule
+        fields = (
+            'rid_id', 'operator', 'aircraft', 'module_esn', 'module_port', 
+            'module_type', 'status', 'activation_status', 'notes', 'firmware_version'
+        )
+    
+    def validate_module_esn(self, value):
+        """Validate module ESN is not empty"""
+        if not value or not value.strip():
+            raise serializers.ValidationError("Module ESN cannot be empty")
+        return value.strip().upper()
+    
+    def create(self, validated_data):
+        """Create RID module, generating RID ID if not provided"""
+        import uuid as uuid_lib
+        
+        # Generate RID ID if not provided
+        if 'rid_id' not in validated_data or not validated_data.get('rid_id'):
+            validated_data['rid_id'] = uuid_lib.uuid4()
+        
+        # Set activated_at to now if not set
+        if 'activated_at' not in validated_data:
+            from django.utils import timezone
+            validated_data['activated_at'] = timezone.now()
+        
+        return super().create(validated_data)

@@ -58,6 +58,14 @@ urlpatterns = [
     # Manufacturer endpoint for reference data
     path('api/v1/manufacturers', registryviews.ManufacturerList.as_view()),
     
+    # RID Module endpoints
+    path('api/v1/rid-modules', registryviews.RIDModuleList.as_view()),
+    path('api/v1/rid-modules/<uuid:pk>', registryviews.RIDModuleDetail.as_view()),
+    path('api/v1/rid-modules/by-rid/<uuid:rid_id>', registryviews.RIDModuleByRIDID.as_view()),
+    path('api/v1/rid-modules/by-esn/<str:module_esn>', registryviews.RIDModuleByESN.as_view()),
+    path('api/v1/operators/<uuid:pk>/rid-modules', registryviews.OperatorRIDModules.as_view()),
+    path('api/v1/aircraft/<uuid:pk>/rid-modules', registryviews.AircraftRIDModules.as_view()),
+    
 ]+ static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 
