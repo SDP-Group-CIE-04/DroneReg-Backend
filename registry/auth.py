@@ -1,3 +1,4 @@
+import os
 import json
 import jwt
 from django.http import JsonResponse
@@ -21,6 +22,11 @@ def requires_auth(view_func):
     """Determines if the Access Token is valid"""
     @wraps(view_func)
     def decorated(self, request, *args, **kwargs):
+        # Check if authentication bypass is enabled
+        bypass_auth = os.environ.get('BYPASS_AUTHENTICATION', 'False') == 'True'
+        if bypass_auth:
+            return view_func(self, request, *args, **kwargs)
+        
         token = get_token_auth_header(request)
         if not token:
             return Response({"message": "Authorization header is required"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -40,6 +46,11 @@ def requires_scope(required_scope):
     def require_scope(view_func):
         @wraps(view_func)
         def decorated(self, request, *args, **kwargs):
+            # Check if authentication bypass is enabled
+            bypass_auth = os.environ.get('BYPASS_AUTHENTICATION', 'False') == 'True'
+            if bypass_auth:
+                return view_func(self, request, *args, **kwargs)
+            
             token = get_token_auth_header(request)
             if not token:
                 return Response({"message": "Authorization header is required"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -58,4 +69,4 @@ def requires_scope(required_scope):
             
             return Response({"message": "You don't have access to this resource"}, status=status.HTTP_403_FORBIDDEN)
         return decorated
-    return require_scope 
+    return require_scope

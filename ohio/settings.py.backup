@@ -142,11 +142,3 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'ohio/static'),
     os.path.join(BASE_DIR, 'registry/static'),
 ]
-
-# Authentication bypass for testing
-BYPASS_AUTHENTICATION = os.environ.get('BYPASS_AUTHENTICATION', 'False') == 'True'
-
-if BYPASS_AUTHENTICATION:
-    REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES'] = []
-    REST_FRAMEWORK['DEFAULT_PERMISSION_CLASSES'] = ['rest_framework.permissions.AllowAny']
-    print("WARNING: Authentication is BYPASSED - For testing only!")
