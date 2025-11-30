@@ -61,6 +61,7 @@ urlpatterns = [
     # RID Module endpoints
     path('api/v1/rid-modules', registryviews.RIDModuleList.as_view()),
     path('api/v1/rid-modules/<uuid:pk>', registryviews.RIDModuleDetail.as_view()),
+    path('api/v1/rid-modules/<uuid:pk>/rid-id', registryviews.RIDModuleRIDIDUpdate.as_view()),
     path('api/v1/rid-modules/by-rid/<uuid:rid_id>', registryviews.RIDModuleByRIDID.as_view()),
     path('api/v1/rid-modules/by-esn/<str:module_esn>', registryviews.RIDModuleByESN.as_view()),
     path('api/v1/operators/<uuid:pk>/rid-modules', registryviews.OperatorRIDModules.as_view()),

@@ -356,3 +356,39 @@ class RIDModuleCreateSerializer(serializers.ModelSerializer):
             validated_data['activated_at'] = timezone.now()
         
         return super().create(validated_data)
+
+
+class RIDModuleRIDIDUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating RID ID of a RID Module"""
+    rid_id = serializers.UUIDField(required=True, help_text="RID ID (UUID v4) to update")
+    
+    class Meta:
+        model = RIDModule
+        fields = ('rid_id',)
+    
+    def validate_rid_id(self, value):
+        """Validate that RID ID is a valid UUID v4 and not already in use"""
+        import uuid as uuid_lib
+        
+        # Check if it's a valid UUID v4
+        if value.version != 4:
+            raise serializers.ValidationError("RID ID must be a valid UUID v4")
+        
+        # Check if the RID ID is already in use by another module
+        # Exclude the current instance if we're updating
+        instance = self.instance
+        if instance:
+            existing = RIDModule.objects.filter(rid_id=value).exclude(pk=instance.pk).first()
+        else:
+            existing = RIDModule.objects.filter(rid_id=value).first()
+        
+        if existing:
+            raise serializers.ValidationError(f"RID ID {value} is already in use by module {existing.module_esn}")
+        
+        return value
+    
+    def update(self, instance, validated_data):
+        """Update the RID ID"""
+        instance.rid_id = validated_data['rid_id']
+        instance.save()
+        return instance

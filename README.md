@@ -1,31 +1,112 @@
-## Drone Registry Sandbox
+## Drone Registry Backend
 
-This is a GUTMA sandbox for working on a interoperable drone registry. It has three main things, you can start in the order below: 
+A Django REST API backend for managing drone/UAS (Unmanned Aircraft Systems) registrations, operators, pilots, and Remote ID (RID) modules. This system provides a comprehensive registry for tracking aircraft, operators, and their associated metadata.
 
-1. [Registry Landscape Whitepaper](https://github.com/gutma-org/droneregistry/blob/master/documents/registration-white-paper.md)
-2. Interoperatble API Specification, the technical specification for a registry. You can see the API specification and explore API endpoints at [https://droneregistry.herokuapp.com](https://droneregistry.herokuapp.com) 
-3. A working API with all endpoints and sample data for you to explore [https://droneregistry.herokuapp.com/api/v1/](https://droneregistry.herokuapp.com/api/v1/)
+### Features
 
+- **Operator Management**: Register and manage drone operators with company details, addresses, and authorizations
+- **Aircraft Registration**: Track registered aircraft with ESN, MACI numbers, and type certificates
+- **Pilot Management**: Manage remote pilots with competency tests and validity tracking
+- **Remote ID Module Support**: Track and manage RID modules with activation status and lifecycle management
+- **RESTful API**: Full REST API with browsable interface
+- **Authentication & Authorization**: JWT-based authentication with privileged access controls
+- **Reference Data**: Manufacturer and activity type management
 
-## Contribute
+### API Endpoints
 
-You can open issues to this repository, review the Landscape document to review the background and look at open issues to look at the current work in progress. 
+The API provides endpoints for:
+- Operators (`/api/v1/operators`)
+- Aircraft (`/api/v1/aircraft`)
+- Pilots (`/api/v1/pilots`)
+- Contacts (`/api/v1/contacts`)
+- RID Modules (`/api/v1/rid-modules`)
+- Manufacturers (`/api/v1/manufacturers`)
 
-## Technical Details  / Self-install
+See the API documentation at `/api/v1/` when running the server.
 
-This is a Django project that uses Django and Django Rest Framework and the API Specification 
+## Technical Details / Installation
 
-### 1. Install Dependencies
-Python 3 is required for this and install dependencies using `pip install -r requirements.txt`.
+This is a Django project using Django REST Framework for building the API. 
 
-### 2. Create Initial Database
-Use `python manage.py migrate` to create the initial database tables locally. It will use the default SQLLite. 
+### Prerequisites
 
-### 3. Populate initial data
-Use `python manage.py loaddata registry/defaultregistrydata.json` to populate initial data. 
+- Python 3.7+
+- pip
+- (Optional) PostgreSQL for production use
+- (Optional) Docker and Docker Compose for containerized deployment
 
-### 4. Run the server
-Use `python manage.py runserver` to start the development server on http://localhost:8000/.
+### Local Development Setup
 
-### 5. Launch browser 
-Launch browser to http://localhost:8000/api/v1/ to launch the API Explorer
+#### 1. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+#### 2. Create Initial Database
+
+Run migrations to create the database schema. By default, it uses SQLite:
+
+```bash
+python manage.py migrate
+```
+
+#### 3. Populate Initial Data (Optional)
+
+Load sample data for testing:
+
+```bash
+python manage.py loaddata registry/defaultregistrydata.json
+```
+
+#### 4. Create Superuser (Optional)
+
+Create an admin user to access the Django admin interface:
+
+```bash
+python manage.py createsuperuser
+```
+
+#### 5. Run the Development Server
+
+Start the Django development server:
+
+```bash
+python manage.py runserver
+```
+
+The API will be available at:
+- API Explorer: http://localhost:8000/api/v1/
+- Django Admin: http://localhost:8000/admin/
+
+### Docker Deployment
+
+For production deployment using Docker:
+
+1. Create a `.env` file with your configuration (see `docker-compose.yml` for required variables)
+2. Build and run with Docker Compose:
+
+```bash
+docker-compose up -d
+```
+
+The API will be available at http://localhost:8001/
+
+### Environment Variables
+
+Key environment variables you can configure:
+
+- `SECRET_KEY`: Django secret key
+- `DEBUG`: Set to `True` for development, `False` for production
+- `ALLOWED_HOSTS`: Comma-separated list of allowed hostnames
+- `DATABASE_URL`: Database connection string (defaults to SQLite)
+- `BYPASS_AUTHENTICATION`: Set to `True` to disable authentication (testing only)
+- `CORS_ALLOWED_ORIGINS`: Comma-separated list of allowed CORS origins
+
+### Project Structure
+
+- `registry/`: Main application containing models, views, serializers
+- `ohio/`: Django project settings and URL configuration
+- `documents/`: API documentation and white papers
+- `tools/`: Utility scripts
+- `migrations/`: Database migration files

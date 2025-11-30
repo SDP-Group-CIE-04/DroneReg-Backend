@@ -24,7 +24,7 @@ from registry.serializers import (ContactSerializer, OperatorSerializer, PilotSe
                                   PrivilagedOperatorSerializer, AircraftSerializer, AircraftESNSerializer,
                                   OperatorCreateSerializer, PilotCreateSerializer, 
                                   ContactCreateSerializer, AircraftCreateSerializer, ManufacturerSerializer,
-                                  RIDModuleSerializer, RIDModuleCreateSerializer)
+                                  RIDModuleSerializer, RIDModuleCreateSerializer, RIDModuleRIDIDUpdateSerializer)
 from django.http import JsonResponse
 from rest_framework.decorators import api_view
 from six.moves.urllib import request as req
@@ -734,3 +734,27 @@ class AircraftRIDModules(mixins.ListModelMixin,
     
     def get(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
+
+
+class RIDModuleRIDIDUpdate(generics.GenericAPIView):
+    """
+    Update the RID ID of a RID Module.
+    PATCH /api/v1/rid-modules/{module_id}/rid-id
+    """
+    queryset = RIDModule.objects.all()
+    serializer_class = RIDModuleRIDIDUpdateSerializer
+    lookup_field = 'pk'
+    
+    @requires_auth
+    def patch(self, request, *args, **kwargs):
+        """Update the RID ID of the module"""
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=False)
+        
+        if serializer.is_valid():
+            serializer.save()
+            # Return the full module object using the standard serializer
+            response_serializer = RIDModuleSerializer(instance)
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
