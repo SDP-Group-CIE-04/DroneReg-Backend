@@ -1,3 +1,6 @@
+from django.contrib.auth.hashers import check_password
+
+
 import datetime
 import json
 
@@ -24,8 +27,10 @@ from rest_framework.decorators import api_view
 from six.moves.urllib import request as req
 from functools import wraps
 
+
 class OperatorList(mixins.ListModelMixin,
-				  generics.GenericAPIView):
+				   mixins.CreateModelMixin,
+				   generics.GenericAPIView):
 	"""
 	List all operators, or create a new operator.
 	"""
@@ -35,6 +40,44 @@ class OperatorList(mixins.ListModelMixin,
 
 	def get(self, request, *args, **kwargs):
 		return self.list(request, *args, **kwargs)
+
+	def post(self, request, *args, **kwargs):
+		return self.create(request, *args, **kwargs)
+	
+
+class AircraftList(mixins.ListModelMixin,
+                   generics.GenericAPIView):
+    """
+    List all aircraft in the database
+    """
+    queryset = Aircraft.objects.all()
+    serializer_class = AircraftSerializer
+
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+	
+
+class OperatorLoginView(generics.GenericAPIView):
+	"""
+	Login endpoint for operators (POST: email, password)
+	"""
+	serializer_class = OperatorSerializer
+
+	def post(self, request, *args, **kwargs):
+		email = request.data.get('email')
+		password = request.data.get('password')
+		if not email or not password:
+			return Response({'error': 'Email and password required.'}, status=400)
+		try:
+			operator = Operator.objects.get(email=email)
+		except Operator.DoesNotExist:
+			return Response({'error': 'Invalid credentials.'}, status=401)
+		if not operator.password or not check_password(password, operator.password):
+			return Response({'error': 'Invalid credentials.'}, status=401)
+		# Serialize operator info
+		data = self.get_serializer(operator).data
+		return Response(data)
+
 
 
 

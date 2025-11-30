@@ -5,7 +5,7 @@ from datetime import date
 from datetime import datetime
 from datetime import timezone
 from dateutil.relativedelta import relativedelta
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 import string, random 
 from django.core.validators import RegexValidator
 
@@ -103,6 +103,7 @@ class Operator(models.Model):
     insurance_number = models.CharField(max_length=25, blank=True, null=True)
     company_number = models.CharField(max_length=25, blank=True, null=True)
     country = models.CharField(max_length = 2, choices=COUNTRY_CHOICES_ISO3166, default = 'NA')
+    password = models.CharField(max_length=128, blank=True, null=True)
 
     def __unicode__(self):
        return self.company_name

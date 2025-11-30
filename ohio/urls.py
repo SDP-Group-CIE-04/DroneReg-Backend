@@ -29,6 +29,7 @@ urlpatterns = [
     path('', registryviews.HomeView.as_view()),
     path('api/v1/', registryviews.APIView.as_view()),
     path('api/v1/operators', registryviews.OperatorList.as_view()),
+    path('api/v1/aircraft', registryviews.AircraftList.as_view(), name='aircraft-list'),
     path('api/v1/operators/<uuid:pk>', registryviews.OperatorDetail.as_view()),
     path('api/v1/operators/<uuid:pk>/privilaged', registryviews.OperatorDetailPrivilaged.as_view()),
     path('api/v1/operators/<uuid:pk>/rpas', registryviews.OperatorAircraft.as_view()),
@@ -40,6 +41,8 @@ urlpatterns = [
     path('api/v1/pilots', registryviews.PilotList.as_view()),
     path('api/v1/pilots/<uuid:pk>', registryviews.PilotDetail.as_view()),
     path('api/v1/pilots/<uuid:pk>/privilaged', registryviews.PilotDetailPrivilaged.as_view()),
+    path('api/v1/operator-login', registryviews.OperatorLoginView.as_view()),
+    path('api/v1/operator-auth', registryviews.OperatorLoginView.as_view()),
     
 ]+ static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 

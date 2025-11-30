@@ -1,5 +1,8 @@
 from rest_framework import serializers
 from registry.models import Activity, Authorization, Operator, Contact, Aircraft, Pilot, Address, Person, Test, TypeCertificate
+import random
+import string
+from django.contrib.auth.hashers import make_password
 
 
 class AddressSerializer(serializers.ModelSerializer):
@@ -29,10 +32,28 @@ class TestsSerializer(serializers.ModelSerializer):
 
 class OperatorSerializer(serializers.ModelSerializer):
     ''' This is the default serializer for Operator '''
+
+    address = AddressSerializer()
+
+    def create(self, validated_data):
+        # Extract and create address if nested
+        address_data = validated_data.pop('address', None)
+        if address_data:
+            address = Address.objects.create(**address_data)
+            validated_data['address'] = address
+        # Get password from payload (password)
+        password = validated_data.pop('password', None)
+        if not password:
+            raise serializers.ValidationError({'password': 'Password is required.'})
+        validated_data['password'] = make_password(password)
+        # Create the operator
+        operator = Operator.objects.create(**validated_data)
+        return operator
+
     class Meta:
         model = Operator
         fields = ('id', 'company_name', 'website', 'email',
-                  'phone_number', )
+                  'phone_number', 'operator_type', 'vat_number', 'insurance_number', 'company_number', 'country', 'address', 'password')
 
 
 class PrivilagedOperatorSerializer(serializers.ModelSerializer):
